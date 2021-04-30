@@ -131,8 +131,13 @@ endif
 
 check-env-docker-repo: check-env-registry-server set-operator-image-repo
 
+check-env-docker-bundle: check-env-registry-server set-operator-bundle-repo
+
 set-operator-image-repo:
 OPERATOR_IMAGE=p-rabbitmq-for-kubernetes/messaging-topology-operator
+
+set-operator-bundle-repo:
+OPERATOR_BUNDLE=p-rabbitmq-for-kubernetes/messaging-topology-operator-bundle
 
 operator-namespace:
 ifeq (, $(K8S_OPERATOR_NAMESPACE))
@@ -148,6 +153,12 @@ generate-manifests:
 	kustomize build config/installation/  > releases/messaging-topology-operator.bak
 	sed '/CERTIFICATE_NAMESPACE.*CERTIFICATE_NAME/d' releases/messaging-topology-operator.bak > releases/messaging-topology-operator.yaml
 	kustomize build config/installation/cert-manager/ > releases/messaging-topology-operator-with-certmanager.yaml
+
+BUNDLE_VERSION ?= latest
+generate-imgpkg: generate-manifests check-env-docker-credentials check-env-docker-bundle ## Create OCI bundle. The default version is latest. To set a version, use the BUNDLE_VERSION variable. Example - make bundle BUNDLE_VERSION=v0.0.1.
+	mkdir -p releases/.imgpkg
+	kbld --imgpkg-lock-output releases/.imgpkg/images.yml -f releases
+	imgpkg push -b $(DOCKER_REGISTRY_SERVER)/$(OPERATOR_BUNDLE):$(BUNDLE_VERSION) -f releases --file-exclusion messaging-topology-operator.bak
 
 CERT_MANAGER_VERSION ?=v1.2.0
 cert-manager:
